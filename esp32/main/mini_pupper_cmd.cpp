@@ -46,6 +46,13 @@ static struct
     struct arg_end *end;
 } servo_pos12_args;
 
+static struct
+{
+    struct arg_int *servo_id;
+    struct arg_int *offset;
+    struct arg_end *end;
+} calibrate_set_args;
+
 /*
  * Switch ON/OFF servo power supply
  *
@@ -305,6 +312,97 @@ static void register_mini_pupper_cmd_calibrate_clear(void)
            .argtable = NULL
     };
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_calibrate) );
+}
+
+static int mini_pupper_cmd_getCalibrate(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+    FILE *fp = fopen(CALIBRATE_PATH, "r");
+    if (!fp) {
+        ESP_LOGI(TAG, "Calibration file %s not found", CALIBRATE_PATH);
+        return 0;
+    }
+
+    ESP_LOGI(TAG, "Calibration offsets (from file %s):", CALIBRATE_PATH);
+    for (int i = 0; i < 12; ++i) {
+        int val = 0;
+        if (fscanf(fp, "%d", &val) != 1) {
+            ESP_LOGI(TAG, "  Servo %d: <read error>", i + 1);
+            break;
+        }
+        ESP_LOGI(TAG, "  Servo %d calibration: %d", i + 1, val);
+    }
+    fclose(fp);
+
+    return 0;
+}
+
+static void register_mini_pupper_cmd_getCalibrate(void)
+{
+    const esp_console_cmd_t cmd_calibrate_get = {
+        .command = "getCalibrate",
+        .help = "print calibration offsets for all servos",
+        .hint = NULL,
+        .func = &mini_pupper_cmd_getCalibrate,
+        .argtable = NULL
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_calibrate_get) );
+}
+
+static int mini_pupper_cmd_setCalibrate(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&calibrate_set_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, calibrate_set_args.end, argv[0]);
+        return 0;
+    }
+
+    int servo_id = calibrate_set_args.servo_id->ival[0];
+    int offset_val = calibrate_set_args.offset->ival[0];
+
+    if (servo_id < 1 || servo_id > 12) {
+        ESP_LOGI(TAG, "Invalid servo ID");
+        return 0;
+    }
+
+    s16 offsets[12];
+    for (int i = 0; i < 12; ++i) {
+        offsets[i] = servo.getCalibrationOffset((u8)i);
+    }
+
+    offsets[servo_id - 1] = (s16)offset_val;
+
+    servo.setCalibration(offsets);
+
+    FILE *fp = fopen(CALIBRATE_PATH, "w");
+    if (!fp) {
+        ESP_LOGI(TAG, "Failed to open calibration file for write");
+        return 0;
+    }
+    for (int i = 0; i < 12; ++i) {
+        fprintf(fp, "%d\n", (int)offsets[i]);
+    }
+    fclose(fp);
+
+    ESP_LOGI(TAG, "Set calibration for servo %d to position %d", servo_id, offset_val);
+    return 0;
+}
+
+static void register_mini_pupper_cmd_setCalibrate(void)
+{
+    calibrate_set_args.servo_id = arg_int1(NULL, NULL, "<id>", "Servo ID (1-12)");
+    calibrate_set_args.offset = arg_int1(NULL, NULL, "<offset>", "Calibration offset");
+    calibrate_set_args.end = arg_end(2);
+    const esp_console_cmd_t cmd_calibrate_set = {
+        .command = "setCalibrate",
+        .help = "set calibration offset for one servo",
+        .hint = "<id> <offset>",
+        .func = &mini_pupper_cmd_setCalibrate,
+        .argtable = &calibrate_set_args
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_calibrate_set) );
 }
 
 static struct {
@@ -1037,7 +1135,7 @@ void register_mini_pupper_cmds(void)
     register_mini_pupper_cmd_setID();
     register_mini_pupper_cmd_calibrate_clear();
     register_mini_pupper_cmd_ota();
-    // register_mini_pupper_cmd_extended_menu();
+    register_mini_pupper_cmd_extended_menu();
 
     // register_mini_pupper_cmd_stats();
 }
@@ -1064,6 +1162,8 @@ void register_mini_pupper_extended_cmds(void)
     register_mini_pupper_cmd_getPositionAsync();
     register_mini_pupper_cmd_getSpeedAsync();
     register_mini_pupper_cmd_getLoadAsync();
+    register_mini_pupper_cmd_getCalibrate();
+    register_mini_pupper_cmd_setCalibrate();
     register_imu_cmds();
     register_system();
     register_wifi();
