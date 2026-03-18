@@ -31,10 +31,13 @@ OFFSET_STEPS = [110, 200, 180,
                 110, 200, 180, 
                 110, 200, 180]
 
+LEG_SELECTION = [0,1,2,3] # leg 0-3
+
 DWELL_TIME = 0.01
 STEP_SIZE = 1
 NEUTRAL_POS = [512 for _ in range(12)]
-ABS_MEDIAN_THRESHOLD = 160   # adjust to your robot
+ABS_MEDIAN_CAUTIOUS_THRESHOLD = 120   
+ABS_MEDIAN_DANGER_THRESHOLD = 160   
 
 def sweep_servo(esp32, servo_id, num_steps, leg_servo_ids, start_pos=None, step_size=1,
                 dwell_time=DWELL_TIME):
@@ -134,7 +137,7 @@ def plot_servo_data(datasets, filename=None, title=None, dpi=150):
     plt.close(fig)
     return filename
 
-def diagnose_leg(esp32, leg_id, servo_ids, offset_steps, unhealthy_servos):
+def diagnose_leg(esp32, leg_id, servo_ids, offset_steps, cautious_servos, danger_servos, file_name):
     ### The leg_id here is 1,2,3,4, only for display purposes.
 
     print(f"\n=== Diagnosing leg {leg_id} (servos {servo_ids}) ===")
@@ -162,13 +165,19 @@ def diagnose_leg(esp32, leg_id, servo_ids, offset_steps, unhealthy_servos):
             max_abs_loads.append(max_abs)
             median_loads.append(median_val)
 
-        print(f"Servo {servo_id} max abs loads: {max_abs_loads}")
-        print(f"Servo {servo_id} median loads: {median_loads}")
-        if any(abs(m) > ABS_MEDIAN_THRESHOLD for m in median_loads):
-            print(f"Cautious!!! Servo {servo_id} median load exceeds threshold {ABS_MEDIAN_THRESHOLD}. Not healthy.")
-            unhealthy_servos.append(servo_id)
+        csv_values = list(map(str, max_abs_loads)) + list(map(str, median_loads)) ### formating for easy copy-paste
+        csv_row = ",".join(csv_values)
+        print(f"{servo_id},{csv_row}")
+        
+        if any(abs(m) > ABS_MEDIAN_CAUTIOUS_THRESHOLD for m in median_loads):
+            print(f"Cautious!!! Servo {servo_id} load exceeds threshold {ABS_MEDIAN_CAUTIOUS_THRESHOLD}, which performance starts to degrade.")
+            cautious_servos.append(servo_id)
+        elif any(abs(m) > ABS_MEDIAN_DANGER_THRESHOLD for m in median_loads):
+            print(f"Danger!!! Servo {servo_id} load exceeds threshold {ABS_MEDIAN_DANGER_THRESHOLD}, could affect performance significantly.")
+            danger_servos.append(servo_id)
 
-    filename = f"leg{leg_id}_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+
+    filename = f"{file_name}leg{leg_id}_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     plot_servo_data(datasets, filename=filename, title=f"Leg {leg_id} Diagnostics")
     print(f"Saved plot for leg {leg_id} to {filename}")
 
@@ -178,15 +187,20 @@ def main():
     print("Moved all servos to neutral. Starting diagnosis...")
     time.sleep(1.0)
 
-    unhealthy_servos = []
-    for leg_id in range(4):
+    test_name = f"bat_yellowmp2_woLegs_t2_" # for plotting file names
+
+    cautious_servos = []
+    danger_servos = []
+    for leg_id in LEG_SELECTION:
         servo_ids = [leg_id*3 + i for i in range(3)]
         offset_steps = OFFSET_STEPS[leg_id*3:(leg_id+1)*3]
-        diagnose_leg(esp32, leg_id+1, servo_ids, offset_steps, unhealthy_servos)
+        diagnose_leg(esp32, leg_id, servo_ids, offset_steps, cautious_servos, danger_servos, test_name)
 
     print("\n=== Summary Report ===")
-    if unhealthy_servos:
-        print(f"Unhealthy servos detected, servo IDs: {unhealthy_servos}")
+    if cautious_servos:
+        print(f"Cautious servos detected, servo IDs: {cautious_servos}")
+    if danger_servos:
+        print(f"Danger servos detected, servo IDs: {danger_servos}")
     else:
         print("All servos passed median load threshold check.")
 
