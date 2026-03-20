@@ -31,13 +31,14 @@ OFFSET_STEPS = [110, 200, 180,
                 110, 200, 180, 
                 110, 200, 180]
 
-LEG_SELECTION = [0,1,2,3] # leg 0-3
+LEG_SELECTION = [1] # leg 0-3
+JOINT_SELECTION = [0, 1, 2] # joint 0-2
 
 DWELL_TIME = 0.01
 STEP_SIZE = 1
 NEUTRAL_POS = [512 for _ in range(12)]
-ABS_MEDIAN_CAUTIOUS_THRESHOLD = 120   
-ABS_MEDIAN_DANGER_THRESHOLD = 160   
+ABS_MEDIAN_CAUTIOUS_THRESHOLD = 180   
+ABS_MEDIAN_DANGER_THRESHOLD = 300   
 
 def sweep_servo(esp32, servo_id, num_steps, leg_servo_ids, start_pos=None, step_size=1,
                 dwell_time=DWELL_TIME):
@@ -86,7 +87,7 @@ def sweep_servo(esp32, servo_id, num_steps, leg_servo_ids, start_pos=None, step_
     }
 
 
-def plot_servo_data(datasets, filename=None, title=None, dpi=150):
+def plot_servo_data(datasets, filename=None, title=None, dpi=150, ylimits=None):
     if not datasets:
         return None
 
@@ -105,6 +106,7 @@ def plot_servo_data(datasets, filename=None, title=None, dpi=150):
     axes[2].plot(all_amps, label="Current")
 
     axes[0].set_ylabel("Load")
+    axes[0].set_ylim(ylimits)
     axes[1].set_ylabel("Voltage (V)")
     axes[2].set_ylabel("Current (A)")
     axes[2].set_xlabel("Sample index")
@@ -144,15 +146,17 @@ def diagnose_leg(esp32, leg_id, servo_ids, offset_steps, cautious_servos, danger
     datasets = []
     for servo_id, steps in zip(servo_ids, offset_steps):
         sweeps = []
-        # Two full cycles: forward/backward repeated
+        # Ten full cycles: forward/backward repeated
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=-STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=-STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=STEP_SIZE))
+
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=-STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=-STEP_SIZE))
         sweeps.append(sweep_servo(esp32, servo_id, steps, servo_ids, step_size=STEP_SIZE))
+        
         datasets.extend(sweeps)
 
         max_abs_loads, median_loads = [], []
@@ -178,7 +182,7 @@ def diagnose_leg(esp32, leg_id, servo_ids, offset_steps, cautious_servos, danger
 
 
     filename = f"{file_name}leg{leg_id}_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    plot_servo_data(datasets, filename=filename, title=f"Leg {leg_id} Diagnostics")
+    plot_servo_data(datasets, filename=filename, title=f"Leg {leg_id} Diagnostics", ylimits=(-400, 400))
     print(f"Saved plot for leg {leg_id} to {filename}")
 
 def main():
@@ -187,12 +191,12 @@ def main():
     print("Moved all servos to neutral. Starting diagnosis...")
     time.sleep(1.0)
 
-    test_name = f"bat_yellowmp2_woLegs_t2_" # for plotting file names
+    test_name = f"bat_redmp2_wLeg_tightnesstest_tight_t1_" # for plotting file names
 
     cautious_servos = []
     danger_servos = []
     for leg_id in LEG_SELECTION:
-        servo_ids = [leg_id*3 + i for i in range(3)]
+        servo_ids = [leg_id*3 + i for i in JOINT_SELECTION] ### only test 2, 3 motors
         offset_steps = OFFSET_STEPS[leg_id*3:(leg_id+1)*3]
         diagnose_leg(esp32, leg_id, servo_ids, offset_steps, cautious_servos, danger_servos, test_name)
 
