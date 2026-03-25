@@ -11,6 +11,7 @@
 #define MOUNT_PATH "/data"
 #define HISTORY_PATH MOUNT_PATH "/history.txt"
 #define CALIBRATE_PATH MOUNT_PATH "/calib.txt"
+#define SERVO_LOAD_LOG_PATH MOUNT_PATH "/sload.txt"
 
 static u16 const REF_ZERO_POSITION {512}; // Hard-coded REF/ZERO position for calibration (0..1023). TODO : from Flash ?
 

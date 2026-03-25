@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 from MangDang.mini_pupper.ESP32Interface import ESP32Interface
 import time
 import os
@@ -11,25 +11,27 @@ python /home/ubuntu/mini_pupper_bsp/demos/load_logger.py
 
 """
 
-
 def main():
     esp32 = ESP32Interface()
-    logfile = "load_history.log"
+    cur_dir = os.path.dirname(os.path.abspath(__file__))
+    timestamp = time.strftime("%H_%M_%S")
+    #logfile = os.path.join(cur_dir, f"load_walk_forward_red_{timestamp}_t1.log")
+    logfile = os.path.join(cur_dir, f"load_walk_forward_red_t1.log")
 
     with open(logfile, "a", encoding="utf-8") as f:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"{timestamp} Start logging...\n")
-        f.flush()
+        #f.write(f"{timestamp} Start logging...\n")
+        #f.flush()
+        print(f"[{timestamp}] Start logging...")
         time.sleep(1.0)
         
         try:
             while True:
-                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                timestamp = time.strftime("%H:%M:%S")
                 loads = esp32.servos_get_load()
                 f.write(f"{timestamp} {loads}\n")
                 f.flush()
-                print(f"[{timestamp}] Start logging...")
-                time.sleep(1.0)
+                time.sleep(0.02)
         except KeyboardInterrupt:
             pass
 

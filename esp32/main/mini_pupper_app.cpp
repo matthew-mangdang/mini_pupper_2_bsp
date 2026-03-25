@@ -33,7 +33,7 @@ static void initialize_filesystem(void)
     static wl_handle_t wl_handle;
     const esp_vfs_fat_mount_config_t mount_config = {
             .format_if_mount_failed = true,
-            .max_files = 4,
+            .max_files = 8,
 	    .allocation_unit_size = 1024,
 	    .disk_status_check_enable = false
     };
@@ -145,8 +145,24 @@ extern "C" void app_main(void)
             // apply offset
             servo.setCalibration(servoOffsets);
         }
-    }    
-
+    }   
+    /*
+    // log power-on event (create file if needed)
+    {
+        FILE * f_servo_log  = fopen(SERVO_LOAD_LOG_PATH, "a");
+        if (f_servo_log == NULL)
+        {
+            ESP_LOGW(TAG, "Failed to append servo load log at power-on, trying to create new file");
+            f_servo_log = fopen(SERVO_LOAD_LOG_PATH, "w");
+        }
+        else
+        {
+            fprintf(f_servo_log, "POWERED ON\n");
+            fclose(f_servo_log);
+        }
+    }
+    */
+   
     // robot loop
     ESP_LOGI(TAG, "STATE_IDLE.");
     int const low_voltage_cutoff_counter_max {60}; // 1 minute
@@ -159,6 +175,7 @@ extern "C" void app_main(void)
     float const low_voltage_threshold_V {4.0}; // V
     float const normal_voltage_threshold_V {4.0}; // V
     int64_t last_time = esp_timer_get_time();
+    int64_t last_servo_log_time = esp_timer_get_time();
     u8 const servoTorquesOFF[12] {0};
     u8 const servoTorquesON[12] {1,1,1,1,1,1,1,1,1,1,1,1};
     for(;;)
@@ -257,7 +274,28 @@ extern "C" void app_main(void)
             {
 
                 // HOST is controling SERVO
+                /*
+                // periodic servo load logging (once per second)
+                int64_t now = esp_timer_get_time();
+                if(now - last_servo_log_time >= 1000000)
+                {
+                    last_servo_log_time = now;
 
+                    s16 servoLoads[12] {0};
+                    servo.getLoad12Async(servoLoads);
+
+                    // write 12 comma-separated load values (no index)
+                    for(size_t index = 0; index < 12; ++index)
+                    {
+                        fprintf(f_servo_log, "%d,", servoLoads[index]);
+                        //if(index < 11) fprintf(f, ",");
+                    }
+                    //fprintf(f_servo_log, "\n");
+                    fflush(f_servo_log);
+                    //fclose(f_servo_log);
+                    }
+                }
+                */
                 // low-voltage cutoff
                 if(POWER::get_voltage_V()<low_voltage_threshold_V && low_voltage_cutoff_counter>0)
                 {

@@ -60,6 +60,76 @@ static struct
 } calibrate_set_pos12_args;
 
 /*
+ * Dump servo load log file
+ */
+
+static int mini_pupper_cmd_servoLoadLog(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+    FILE *fp = fopen(SERVO_LOAD_LOG_PATH, "r");
+    if (!fp) {
+        ESP_LOGI(TAG, "Servo load log file %s not found", SERVO_LOAD_LOG_PATH);
+        return 0;
+    }
+
+    ESP_LOGI(TAG, "--- Servo load log (%s) ---", SERVO_LOAD_LOG_PATH);
+
+    char line[256];
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        // Print each line as-is; lines are already newline-terminated
+        ESP_LOGI(TAG, "%s", line);
+    }
+
+    fclose(fp);
+    ESP_LOGI(TAG, "--- End of servo load log ---");
+
+    return 0;
+}
+
+static void register_mini_pupper_cmd_servoLoadLog(void)
+{
+    const esp_console_cmd_t cmd_servo_load_log = {
+        .command = "get-load-log",
+        .help = "print servo load log file",
+        .hint = NULL,
+        .func = &mini_pupper_cmd_servoLoadLog,
+        .argtable = NULL
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_load_log) );
+}
+
+/*
+ * Delete servo load log file
+ */
+
+static int mini_pupper_cmd_servo_load_clear(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+    if (remove(SERVO_LOAD_LOG_PATH) == 0) {
+        ESP_LOGI(TAG, "The servo load log file is deleted successfully.");
+    } else {
+        ESP_LOGI(TAG, "The servo load log file is not deleted.");
+    }
+    return 0;
+}
+
+static void register_mini_pupper_cmd_servo_load_clear(void)
+{
+    const esp_console_cmd_t cmd_servo_load_clear = {
+        .command = "load-log-clear",
+        .help = "delete servo load log file",
+        .hint = NULL,
+        .func = &mini_pupper_cmd_servo_load_clear,
+        .argtable = NULL
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd_servo_load_clear) );
+}
+
+/*
  * Switch ON/OFF servo power supply
  *
  */
@@ -1276,6 +1346,8 @@ void register_mini_pupper_extended_cmds(void)
     register_mini_pupper_cmd_getCalibrate();
     register_mini_pupper_cmd_setCalibrate();
     register_mini_pupper_cmd_setCalibrate12();
+    register_mini_pupper_cmd_servoLoadLog();
+    register_mini_pupper_cmd_servo_load_clear();
     register_imu_cmds();
     register_system();
     register_wifi();
